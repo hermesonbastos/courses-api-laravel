@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Gestão de Cursos - Com Modal</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f2f2f2;
+    }
+    h1, h2 {
+      color: #333;
+    }
+    #course-list {
+      display: flex;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .course-item {
+      background: #fff;
+      border: 1px solid #ccc;
+      margin: 8px;
+      padding: 12px;
+      border-radius: 5px;
+      width: 220px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      position: relative;
+    }
+    .course-item h3 {
+      margin: 0 0 5px 0;
+      font-size: 1.1rem;
+      color: #444;
+    }
+    .course-item p {
+      margin: 4px 0;
+      font-size: 0.9rem;
+      color: #555;
+    }
+    .buttons {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 10px;
+    }
+    button {
+      padding: 6px 10px;
+      cursor: pointer;
+      border: none;
+      border-radius: 3px;
+      color: #fff;
+      font-size: 0.85rem;
+      transition: background 0.2s;
+    }
+    .delete {
+      background: #dc3545;
+    }
+    .delete:hover {
+      background: #c82333;
+    }
+    .edit {
+      background: #28a745;
+    }
+    .edit:hover {
+      background: #218838;
+    }
+    #new-course-btn {
+      background: #007bff;
+      padding: 10px 15px;
+      font-size: 1rem;
+      margin-bottom: 15px;
+    }
+    #new-course-btn:hover {
+      background: #0069d9;
+    }
+    #modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+    }
+    #modal-container {
+      background: #fff;
+      width: 90%;
+      max-width: 500px;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      position: relative;
+      padding: 20px;
+    }
+    #modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    #modal-header h2 {
+      margin: 0;
+      font-size: 1.2rem;
+    }
+    #close-modal-btn {
+      background: none;
+      border: none;
+      font-size: 1.2rem;
+      font-weight: bold;
+      cursor: pointer;
+      color: #999;
+    }
+    #close-modal-btn:hover {
+      color: #666;
+    }
+    #course-form label {
+      display: block;
+      margin: 8px 0 4px;
+      font-weight: bold;
+    }
+    #course-form input[type="text"],
+    #course-form textarea {
+      width: 100%;
+      padding: 8px;
+      box-sizing: border-box;
+      margin-bottom: 10px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+    }
+    #modal-footer {
+      text-align: right;
+      margin-top: 10px;
+    }
+    #submit-btn {
+      background: #28a745;
+      padding: 6px 12px;
+      border-radius: 3px;
+    }
+    #submit-btn:hover {
+      background: #218838;
+    }
+    #cancel-btn {
+      background: #6c757d;
+      margin-left: 10px;
+      padding: 6px 12px;
+      border-radius: 3px;
+    }
+    #cancel-btn:hover {
+      background: #5a6268;
+    }
+  </style>
+</head>
+<body>
+  <h1>Gestão de Cursos (Modal Edition)</h1>
+  <div id="course-list"></div>
+  <button id="new-course-btn">Adicionar Novo Curso</button>
+  <div id="modal-overlay">
+    <div id="modal-container">
+      <div id="modal-header">
+        <h2 id="form-title">Novo Curso</h2>
+        <button id="close-modal-btn">&times;</button>
+      </div>
+      <form id="course-form">
+        <input type="hidden" id="course-id" />
+        <label for="title">Título</label>
+        <input type="text" id="title" required />
+        <label for="description">Descrição</label>
+        <textarea id="description"></textarea>
+        <label for="hours">Carga Horária</label>
+        <input type="text" id="hours" required />
+        <div id="modal-footer">
+          <button type="submit" id="submit-btn">Salvar</button>
+          <button type="button" id="cancel-btn">Cancelar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <script>
+    const API_URL = 'http://127.0.0.1:8000/api/cursos';
+    const courseList = document.getElementById('course-list');
+    const newCourseBtn = document.getElementById('new-course-btn');
+    const modalOverlay = document.getElementById('modal-overlay');
+    const modalContainer = document.getElementById('modal-container');
+    const closeModalBtn = document.getElementById('close-modal-btn');
+    const formTitle = document.getElementById('form-title');
+    const courseForm = document.getElementById('course-form');
+    const courseIdField = document.getElementById('course-id');
+    const titleField = document.getElementById('title');
+    const descriptionField = document.getElementById('description');
+    const hoursField = document.getElementById('hours');
+    const submitBtn = document.getElementById('submit-btn');
+    const cancelBtn = document.getElementById('cancel-btn');
+    let editMode = false;
+    fetchCourses();
+    function fetchCourses() {
+      fetch(API_URL)
+        .then(response => response.json())
+        .then(data => {
+          renderCourses(data);
+        })
+        .catch(error => {
+          console.error('Erro ao buscar cursos:', error);
+        });
+    }
+    function renderCourses(courses) {
+      courseList.innerHTML = '';
+      courses.forEach(course => {
+        const courseItem = document.createElement('div');
+        courseItem.className = 'course-item';
+        const title = document.createElement('h3');
+        title.textContent = course.title;
+        const desc = document.createElement('p');
+        desc.textContent = `Descrição: ${course.description ?? ''}`;
+        const hrs = document.createElement('p');
+        hrs.textContent = `Horas: ${course.hours}`;
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'buttons';
+        const editButton = document.createElement('button');
+        editButton.textContent = 'Editar';
+        editButton.className = 'edit';
+        editButton.onclick = () => editCourse(course);
+        const deleteButton = document.createElement('button');
+        deleteButton.textContent = 'Excluir';
+        deleteButton.className = 'delete';
+        deleteButton.onclick = () => deleteCourse(course.id);
+        buttonContainer.appendChild(editButton);
+        buttonContainer.appendChild(deleteButton);
+        courseItem.appendChild(title);
+        courseItem.appendChild(desc);
+        courseItem.appendChild(hrs);
+        courseItem.appendChild(buttonContainer);
+        courseList.appendChild(courseItem);
+      });
+    }
+    newCourseBtn.addEventListener('click', () => {
+      editMode = false;
+      clearForm();
+      formTitle.textContent = 'Novo Curso';
+      submitBtn.textContent = 'Criar';
+      showModal();
+    });
+    function editCourse(course) {
+      editMode = true;
+      courseIdField.value = course.id;
+      titleField.value = course.title;
+      descriptionField.value = course.description;
+      hoursField.value = course.hours;
+      formTitle.textContent = 'Editar Curso';
+      submitBtn.textContent = 'Atualizar';
+      showModal();
+    }
+    function deleteCourse(id) {
+      if (!confirm('Tem certeza que deseja excluir este curso?')) return;
+      fetch(`${API_URL}/${id}`, {
+        method: 'DELETE'
+      })
+        .then(response => response.json())
+        .then(data => {
+          alert(data.message || 'Curso excluído com sucesso!');
+          fetchCourses();
+        })
+        .catch(error => {
+          console.error('Erro ao excluir curso:', error);
+        });
+    }
+    courseForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (editMode) {
+        updateCourse();
+      } else {
+        createCourse();
+      }
+    });
+    function createCourse() {
+      const payload = {
+        title: titleField.value,
+        description: descriptionField.value,
+        hours: parseInt(hoursField.value, 10)
+      };
+      fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+        .then(response => response.json())
+        .then(() => {
+          alert('Curso criado com sucesso!');
+          hideModal();
+          fetchCourses();
+        })
+        .catch(error => {
+          console.error('Erro ao criar curso:', error);
+        });
+    }
+    function updateCourse() {
+      const id = courseIdField.value;
+      const payload = {
+        title: titleField.value,
+        description: descriptionField.value,
+        hours: parseInt(hoursField.value, 10)
+      };
+      fetch(`${API_URL}/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+        .then(response => response.json())
+        .then(() => {
+          alert('Curso atualizado com sucesso!');
+          hideModal();
+          fetchCourses();
+        })
+        .catch(error => {
+          console.error('Erro ao atualizar curso:', error);
+        });
+    }
+    cancelBtn.addEventListener('click', () => {
+      hideModal();
+    });
+    closeModalBtn.addEventListener('click', () => {
+      hideModal();
+    });
+    function clearForm() {
+      courseIdField.value = '';
+      titleField.value = '';
+      descriptionField.value = '';
+      hoursField.value = '';
+    }
+    function showModal() {
+      modalOverlay.style.display = 'flex';
+    }
+    function hideModal() {
+      modalOverlay.style.display = 'none';
+      clearForm();
+    }
+  </script>
+</body>
+</html>
